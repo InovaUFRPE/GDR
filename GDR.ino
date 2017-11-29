@@ -1,115 +1,179 @@
+
 /*****************************************************************************************************
 ------------------------------------------GDR - Guide Dog Robot---------------------------------------
-Versão do Software: 1.0
+Versão do Software: 1.1
 ******************************************************************************************************/
   // inclusão de bibliotecas.    
   #include <Servo.h>    // inclui biblioteca de manipulação do servo motor.    
   #include <AFMotor.h>   // inclui biblioteca de manipulação dos motores DCs.  
+  #include <SoftwareSerial.h>
     
   //Definindo os pinos  
-  #define trigPin A0 //Pino TRIG do sensor no pino analógico A0
-  #define echoPin A1 //Pino ECHO do sensor no pino analógico A1
-  #define BUZZER A2  // Define o pino do buzzer (Som) no pino ANALÓGICO A0  
+  #define trigPinF A8 //Pino TRIG do sensor frontal no pino analógico A8
+  #define echoPinF A9 //Pino ECHO do sensor frontal no pino analógico A9
+  
+  #define trigPinS A10 //Pino TRIG do sensor superior no pino analógico A10
+  #define echoPinS A11 //Pino ECHO do sensor superior no pino analógico A11
+
+  #define BUZZER A12  // Define o pino do buzzer (Som) no pino ANALÓGICO A12 
+ 
+  #define IR A13  //Sensor INFRA-VERMELHO no pino analógico A13 
+  
+  SoftwareSerial bluetooth(14, 15);
+  
+  
   AF_DCMotor motor1(1);    // Define o motor1 ligado ao M1  
   AF_DCMotor motor2(2);    // Define o motor2 ligado ao M2  
  
   int TempoGirar = 1;//esse é o tempo para o robô girar em 45º com uma bateria de 9v.
-  int distanciaObstaculo = 30; //distância para o robô parar e recalcular o melhor caminho
+  int distanciaObstaculoFrontal = 30; //distância para o robô parar e recalcular o melhor caminho
+  int distanciaObstaculoSuperior = 50; //distância para o robô parar e recalcular o melhor caminho
   int velocidadeMotores = 255 ; // velocidade que os motores funcionarão na bateria 9v. Para a bateria 9v a velocidade 80 é ideal
   Servo servo_ultra_sonico; // nomeando o servo motor    
   
   //variáveis  para o sensor ultrassonico
-  long duracao;
-  long distancia_cm=0;
+  long duracao_frontal;
+  long distancia_cm_frontal=0;
+  long duracao_superior;
+  long distancia_cm_superior=0;
   int minimumRange=5; //tempo de resposta do sensor
   int maximumRange=200;
+  
+  //variáveis  para o sensor IR
+  int status_IR = 1;
     
   // executado na inicialização do Arduino    
   void setup(){    
-    Serial.begin(9600); // inicializa a comunicação serial para mostrar dados     
+    Serial.begin(9600); // inicializa a comunicação serial para mostrar dados  
+    bluetooth.begin(9600); // inicializa a comunicação bluetooth   
+    
     servo_ultra_sonico.attach(10);  // Define o mini servo motor ligado no pino digital 10.    
-    pinMode(trigPin, OUTPUT); //define o pino TRIG como saída
-    pinMode(echoPin, INPUT);  //define o pino ECHO como entrada 
+    
+    pinMode(trigPinF, OUTPUT); //define o pino TRIG como saída
+    pinMode(echoPinF, INPUT);  //define o pino ECHO como entrada 
+    
+    pinMode(trigPinS, OUTPUT); //define o pino TRIG como saída
+    pinMode(echoPinS, INPUT);  //define o pino ECHO como entrada 
+    
+    pinMode(IR, INPUT);  //define o pino IR como entrada 
+    
     pinMode(BUZZER,OUTPUT);   // Define o pino do buzzer como saída   
+    
     motor1.setSpeed(velocidadeMotores);     // Define a velocidade para os motores. A velocidade máxima é 255. 
     motor2.setSpeed(velocidadeMotores);     // Define a velocidade para os motores. A velocidade máxima é 255.
+    
     servo_ultra_sonico.write(90);   // O servo do sensor se inicia a 90 graus (meio)    
     rotacao_Parado;  //inica com os motores parados     
+    
+    digitalWrite(BUZZER, HIGH); // SOM AO LIGAR
+    delay(1500);  
+    digitalWrite(BUZZER, LOW); // Desliga o som
+ 
+    bluetooth.println("Bluetooth OK!");   
   }    
     
   // Função principal do Arduino    
-  void loop(){    
+  void loop(){ 
     pensar(); //inicia a função pensar  
   }    
     
   // Função para chamar outras funções e definir o que o robô fará  
-  void pensar(){    
+  void pensar(){   
+   status_IR = digitalRead(IR); // Ler o sensor infra-vermelho
    reposicionaServoSonar(); //Coloca o servo para olhar a frente    
-   int distancia = lerSonar(); // Ler o sensor de distância  
-   Serial.print("distancia em cm: "); 
-   Serial.println(distancia);   // Exibe no serial monitor 
-   if (distancia > distanciaObstaculo) {  // Se a distância for maior que 20 cm  
+   int distanciaFrontal = lerSonarFrontal(); // Ler o sensor de distância frontal
+   int distanciaSuperior = lerSonarSuperior(); // Ler o sensor de distância superior
+   Serial.print("distancia Frontal: "); 
+   Serial.println(distanciaFrontal);   // Exibe no serial monitor 
+   Serial.print("distancia Superior: "); 
+   Serial.println(distanciaSuperior);   // Exibe no serial monitor
+  
+   if (status_IR == 1){
+     Serial.println("Buraco detectado!");   // Exibe no serial monitor   
+     rotacao_Parado();  //para o robô 
+     pensar(); 
+   }  
+   
+   if ((distanciaFrontal > distanciaObstaculoFrontal) && (distanciaSuperior > distanciaObstaculoSuperior)) {  // Se a distância for maior que distancia dos obstaculos frontal e superior  
+     Serial.println("Caminho sem buraco!");   // Exibe no serial monitor
      rotacao_Frente(); //robô anda para frente   
-   }else{   
+   }else{  
      rotacao_Parado();  //para o robô  
      posicionaCarroMelhorCaminho(); //calcula o melhor caminho    
      pensar();    
    }   
   }  
     
-  // Função para ler e calcular a distância do sensor ultrassônico    
-  int lerSonar(){    
-   digitalWrite(trigPin, LOW); //não envia som
+  // Função para ler e calcular a distância do sensor frontal    
+  int lerSonarFrontal(){
+   
+   digitalWrite(trigPinF, LOW); //não envia som (pulso BAIXO de 2 microsegundos para depois enviar pulso ALTO mais limpo) 
    delayMicroseconds(2);
-   digitalWrite(trigPin,HIGH); //envia som 
+   digitalWrite(trigPinF,HIGH); //envia som 
    delayMicroseconds(10);
-   digitalWrite(trigPin,LOW); //não envia o som e espera o retorno do som enviado
-   duracao = pulseIn(echoPin,HIGH); //Captura a duração em tempo do retorno do som.
-   distancia_cm = duracao/56; //Calcula a distância
+   digitalWrite(trigPinF,LOW); //não envia o som e espera o retorno do som enviado
+   duracao_frontal = pulseIn(echoPinF,HIGH); //Captura a duração em tempo do retorno do som.
+   distancia_cm_frontal = duracao_frontal/56; //Calcula a distância (velocidade do som 340m/s ou 28 microsegundos/cm - o sinal vai e volta, entao dividiremos o pulso por 28 * 2 = 56)
    delay(30);  
-   return distancia_cm;             // Retorna a distância  
-  }   
+   return distancia_cm_frontal;             // Retorna a distância frontal
+   }   
     
-  // Função para calcular a distância do centro    
+   // Função para ler e calcular a distância do sensor superior    
+   int lerSonarSuperior(){
+   
+   digitalWrite(trigPinS, LOW); //não envia som (pulso BAIXO de 2 microsegundos para depois enviar pulso ALTO mais limpo) 
+   delayMicroseconds(2);
+   digitalWrite(trigPinS,HIGH); //envia som 
+   delayMicroseconds(10);
+   digitalWrite(trigPinS,LOW); //não envia o som e espera o retorno do som enviado
+   duracao_superior = pulseIn(echoPinS,HIGH); //Captura a duração em tempo do retorno do som.
+   distancia_cm_superior = duracao_superior/56; //Calcula a distância (velocidade do som 340m/s ou 28 microsegundos/cm - o sinal vai e volta, entao dividiremos o pulso por 28 * 2 = 56)
+   delay(30);  
+   return distancia_cm_superior;             // Retorna a distância frontal
+   }
+    
+  // Função para calcular a distância do centro (FALTA CONFIGURAR SENSOR SUPERIOR!)
   int calcularDistanciaCentro(){    
    servo_ultra_sonico.write(90);    
    delay(20);   
-   int leituraDoSonar = lerSonar();  // Ler sensor de distância  
+   int leituraDoSonarFrontal = lerSonarFrontal();  // Ler sensor frontal  
+   int leituraDoSonarSuperior = lerSonarSuperior();  // Ler sensor superior  
    delay(500);   
-   leituraDoSonar = lerSonar();   
+   leituraDoSonarFrontal = lerSonarFrontal();
+   leituraDoSonarSuperior = lerSonarSuperior();  
    delay(500);   
    Serial.print("Distancia do Centro: "); // Exibe no serial  
-   Serial.println(leituraDoSonar);   
-   return leituraDoSonar;       // Retorna a distância  
+   Serial.println(leituraDoSonarFrontal, leituraDoSonarSuperior);   
+   return leituraDoSonarFrontal;       // Retorna a distância  
   }    
     
-  // Função para calcular a distância da direita    
+  // Função para calcular a distância da direita (FALTA CONFIGURAR SENSOR SUPERIOR!)
   int calcularDistanciaDireita(){    
-   servo_ultra_sonico.write(0);   
+   servo_ultra_sonico.write(45);   
    delay(200);  
-   int leituraDoSonar = lerSonar();   
+   int leituraDoSonarFrontal = lerSonarFrontal();  // Ler sensor frontal  
    delay(500);   
-   leituraDoSonar = lerSonar();   
+   leituraDoSonarFrontal = lerSonarFrontal();
    delay(500);   
    Serial.print("Distancia da Direita: ");  
-   Serial.println(leituraDoSonar);   
-   return leituraDoSonar;    
+   Serial.println(leituraDoSonarFrontal);   
+   return leituraDoSonarFrontal;       // Retorna a distância     
   }    
     
-  // Função para calcular a distância da esquerda    
+  // Função para calcular a distância da esquerda (FALTA CONFIGURAR SENSOR SUPERIOR!)   
   int calcularDistanciaEsquerda(){    
-   servo_ultra_sonico.write(180);   
+   servo_ultra_sonico.write(135);   
    delay(200);  
-   int leituraDoSonar = lerSonar();   
+   int leituraDoSonarFrontal = lerSonarFrontal();  // Ler sensor frontal  
    delay(500);   
-   leituraDoSonar = lerSonar();   
+   leituraDoSonarFrontal = lerSonarFrontal();
    delay(500);   
    Serial.print("Distancia Esquerda: ");  
-   Serial.println(leituraDoSonar);   
-   return leituraDoSonar;    
+   Serial.println(leituraDoSonarFrontal);   
+   return leituraDoSonarFrontal;       // Retorna a distância     
   }    
     
-  // Função para captar as distâncias lidas e calcular a melhor distância.    
+  // Função para captar as distâncias lidas e calcular a melhor distância. (FALTA CONFIGURAR SENSOR SUPERIOR!)    
   char calculaMelhorDistancia(){    
    int esquerda = calcularDistanciaEsquerda();    
    int centro = calcularDistanciaCentro();    
@@ -130,7 +194,7 @@ Versão do Software: 1.0
      melhorDistancia = 'e';    
      maiorDistancia = esquerda;    
    }    
-   if (maiorDistancia <= distanciaObstaculo) { //distância limite para parar o robô   
+   if (maiorDistancia <= distanciaObstaculoFrontal) { //distância limite para parar o robô   
      rotacao_Re();    
      posicionaCarroMelhorCaminho();    
    }    
@@ -172,7 +236,11 @@ Versão do Software: 1.0
   // Função para fazer o robô andar para frente    
   void rotacao_Frente()    
   {    
-   Serial.println("Motor: Frente ");   
+   Serial.println("Motor: Frente "); 
+   digitalWrite(BUZZER, HIGH); // Liga o som 
+   delay(100);  
+   digitalWrite(BUZZER, LOW); // Desliga o som  
+   delay(100); 
    motor1.run(FORWARD); // Roda vai para frente  
    motor2.run(FORWARD);   
    delay(50);    
