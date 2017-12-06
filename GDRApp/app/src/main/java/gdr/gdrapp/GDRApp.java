@@ -1,11 +1,9 @@
 package gdr.gdrapp;
 
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -20,6 +18,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -30,13 +29,10 @@ public class GDRApp extends AppCompatActivity {
     ImageButton config;
     ImageButton manual;
     TextView texto;
-    BluetoothDevice mDevice=null;
     BluetoothSocket mSocket=null;
-    BluetoothServerSocket server;
-    int i;
+    ProgressDialog loading;
     UUID mUUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
     static final int VISIBILITY_REQUEST = 1;
-    static final int CONEXAO_REQUEST = 2;
     ArrayList<BluetoothDevice> encontrados;
 
     @Override
@@ -45,8 +41,6 @@ public class GDRApp extends AppCompatActivity {
         setContentView(R.layout.activity_gdrapp);
         configBotoes();
     }
-
-
 
     //função é chamada sempre que o dispositivo detecta outro disponivel
     private final BroadcastReceiver receptor = new BroadcastReceiver() {
@@ -60,8 +54,9 @@ public class GDRApp extends AppCompatActivity {
                 }
                 encontrados.add(device);
             }else if (action.equals(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)) {
-
+                loading.dismiss();
                 listaDispositivos();
+
             }
         }
     };
@@ -87,6 +82,16 @@ public class GDRApp extends AppCompatActivity {
         config = findViewById(R.id.configuracao);
         manual = findViewById(R.id.manual);
         texto = findViewById(R.id.Pbateria);
+        BTstatus.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View view) {
+                if(meuBluetooth.enable()){
+                    procurar();
+                    return true;
+                }
+                return false;
+            }
+        });
         BTstatus.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
                 setBT();
@@ -124,16 +129,21 @@ public class GDRApp extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == VISIBILITY_REQUEST && resultCode == RESULT_FIRST_USER) {
             meuBluetooth.enable();
-            IntentFilter bluetoothFilter = new IntentFilter();
-            bluetoothFilter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
-            bluetoothFilter.addAction(BluetoothDevice.ACTION_FOUND);
-            bluetoothFilter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-            registerReceiver(receptor, bluetoothFilter);
-            encontrados = new ArrayList<>();
             BTstatus.setContentDescription("desligar bluetooth");
             BTstatus.setBackgroundResource(R.drawable.bton);
-            meuBluetooth.startDiscovery();
+            procurar();
         }
+    }
+
+    public void procurar(){
+        IntentFilter bluetoothFilter = new IntentFilter();
+        bluetoothFilter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
+        bluetoothFilter.addAction(BluetoothDevice.ACTION_FOUND);
+        bluetoothFilter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        registerReceiver(receptor, bluetoothFilter);
+        encontrados = new ArrayList<>();
+        loading = ProgressDialog.show(this,"","Procurando dispositivos...",false,false);
+        meuBluetooth.startDiscovery();
     }
 
     //pega a lista de dispositivos encontrados e mostra no AlertDialog
@@ -145,7 +155,6 @@ public class GDRApp extends AppCompatActivity {
         final CharSequence[] disp = x;
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Dispositivos encontrados");
-        builder.setCancelable(false);
         builder.setItems(disp, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, final int selecionado) {
                 try {
@@ -157,28 +166,43 @@ public class GDRApp extends AppCompatActivity {
         });
         builder.setPositiveButton("Procurar novamente", new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int id) {
-                meuBluetooth.startDiscovery();
+                procurar();
             }
         });
         builder.create().show();
     }
 
-    //Chamado quando vc escolhe o dispositivo NÂO FUNCIONA
+    //Chamado quando vc escolhe o dispositivo que quer se conectar
     public void conecta(int i) throws IOException {
         BluetoothDevice GDR = encontrados.get(i);
-        mDevice = meuBluetooth.getRemoteDevice(GDR.getAddress());
-        mSocket = mDevice.createRfcommSocketToServiceRecord(mUUID);
-        mSocket.connect();
-        if (mSocket != null){
-            Toast.makeText(getApplicationContext(),"Conectado ao Aparelho: " + GDR.getAddress(),Toast.LENGTH_LONG).show();
-        }else{
-            Toast.makeText(getApplicationContext(),"Não conectado ao Aparelho: " + GDR.getAddress(),Toast.LENGTH_LONG).show();
+        mSocket = GDR.createInsecureRfcommSocketToServiceRecord(mUUID);
+        try{
+            mSocket.connect();
+        } catch (IOException e){
+            try{
+                Method method = GDR.getClass().getMethod("createRfcommSocket", new Class[] {int.class});
+                mSocket = (BluetoothSocket)method.invoke(GDR, Integer.valueOf(1));
+                mSocket.connect();
+                if (mSocket.getRemoteDevice().getName()=="HC-05"){
+                    Toast.makeText(this, "Você está conectado ao GDR", Toast.LENGTH_LONG).show();
+                }
+            } catch (Exception ex) {
+                throw new IOException(e);
+            }
         }
+
     }
 
+
+
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        unregisterReceiver(receptor);
+    public void onPause() {
+        try{
+            if(receptor != null) {
+                this.unregisterReceiver(receptor);
+            }
+        } catch (Exception e){
+        }
+        super.onPause();
     }
 }
