@@ -10,10 +10,14 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Vibrator;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageButton;
+import android.widget.RelativeLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -39,10 +43,14 @@ public class GDRApp extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_gdrapp);
+        startService(new Intent(getBaseContext(), Service.class));
         configBotoes();
     }
 
-    //função é chamada sempre que o dispositivo detecta outro disponivel
+    // Essa função é chamada sempre que:
+    // - o dispositivo detecta outro disponivel
+    // - quando acaba a busca
+    // - quando a conexão com o GDR acaba
     private final BroadcastReceiver receptor = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -56,7 +64,12 @@ public class GDRApp extends AppCompatActivity {
             }else if (action.equals(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)) {
                 loading.dismiss();
                 listaDispositivos();
+            }else if (action.equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)){
+                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_CONNECTION_STATE, -1);
+                if (state == BluetoothAdapter.STATE_DISCONNECTED)
+                {
 
+                }
             }
         }
     };
@@ -105,8 +118,14 @@ public class GDRApp extends AppCompatActivity {
         });
         config.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
-                startActivity(new Intent(GDRApp.this, Manual.class));
-                finish();
+                final AlertDialog.Builder dialog1 = new AlertDialog.Builder(GDRApp.this);
+                //dialog1.setCancelable(false);
+                dialog1.setCustomTitle(getLayoutInflater().inflate(R.layout.btn_share,null));
+                //dialog1.setView(/*Your number picker view*/);
+                dialog1.create().show();
+
+                //startActivity(new Intent(GDRApp.this, Manual.class));
+                //finish();
             }
         });
     }
@@ -140,30 +159,39 @@ public class GDRApp extends AppCompatActivity {
         bluetoothFilter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
         bluetoothFilter.addAction(BluetoothDevice.ACTION_FOUND);
         bluetoothFilter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        bluetoothFilter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        bluetoothFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         registerReceiver(receptor, bluetoothFilter);
         encontrados = new ArrayList<>();
         loading = ProgressDialog.show(this,"","Procurando dispositivos...",false,false);
         meuBluetooth.startDiscovery();
     }
 
+
+
     //pega a lista de dispositivos encontrados e mostra no AlertDialog
     public void listaDispositivos(){
-        CharSequence[] x = new CharSequence[encontrados.size()];
-        for(int i = 0; i<encontrados.size();i++){
-            x[i] = encontrados.get(i).getName()+"\n"+encontrados.get(i).getAddress();
-        }
-        final CharSequence[] disp = x;
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Dispositivos encontrados");
-        builder.setItems(disp, new DialogInterface.OnClickListener() {
-            public void onClick(DialogInterface dialog, final int selecionado) {
-                try {
-                    conecta(selecionado); //quando a pessoa escolhe ele pega o indice do selecionado na lista de encontrados
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        if (encontrados.size()== 0){
+            builder.setMessage("Nenhum dispositivo encontrado");
+        }else {
+            CharSequence[] x = new CharSequence[encontrados.size()];
+            for(int i = 0; i<encontrados.size();i++){
+                x[i] = encontrados.get(i).getName()+"\n"+encontrados.get(i).getAddress();
             }
-        });
+            final CharSequence[] disp = x;
+            builder.setTitle("Dispositivos encontrados");
+            builder.setItems(disp, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, final int selecionado) {
+                    try {
+                        conecta(selecionado); //quando a pessoa escolhe ele pega o indice do selecionado na lista de encontrados
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+        }
         builder.setPositiveButton("Procurar novamente", new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int id) {
                 procurar();
