@@ -1,7 +1,7 @@
 
 /*****************************************************************************************************
  * ------------------------------------------GDR - Guide Dog Robot---------------------------------------
- * Versão do Software: 2.0
+ * Versão do Software: 2.1
  ******************************************************************************************************/
 //--- BIBLIOTECAS ---    
 #include <Servo.h>                 //Biblioteca de manipulação do servo motor.    
@@ -20,8 +20,8 @@
 SoftwareSerial bluetooth(14, 15);  //Adaptador BLUETOOTH portas RX/FX
 
 //--- SELECAO MOTORES ---
-AF_DCMotor motor1(1);              //Define MOTOR 1 ligado ao pino M1 do SHIELD  
-AF_DCMotor motor2(2);              //Define MOTOR 2 ligado ao pino M2 do SHIELD 
+AF_DCMotor motor1(3);              //Define MOTOR 1 ligado ao pino M1 do SHIELD  
+AF_DCMotor motor2(4);              //Define MOTOR 2 ligado ao pino M2 do SHIELD 
 Servo servo;                       //Define nome do SERVO MOTOR
 
 
@@ -43,10 +43,12 @@ float dist_cm;                         //Armazena a distância em centímetros e
 float dist_right;                      //Armazena a distância em centímetros da direita
 float dist_left;                       //Armazena a distância em centímetros da esquerda
 int status_IR_piso_ok = 1;             //Armazena 1 enquanto o piso estiver OK e 0 quando NAO OK   
+int contador;
          
 // --- CONFIGURACOES INICIAIS ---
 void setup()
 {  
+ Serial.begin(9600);
  bluetooth.begin(9600);                           //Inicializa a comunicação bluetooth 
  pinMode(trigPinF, OUTPUT);                       //Saída para o pulso de trigger
  pinMode(echoPinF, INPUT);                        //Entrada para o pulso de echo
@@ -57,7 +59,7 @@ void setup()
  digitalWrite(trigPinF, LOW);                     //Pino de trigger inicia em low
  servo.write(90);                                 //Centraliza servo
  delay(500);                                      //Aguarda meio segundo antes de iniciar
- velocidade = 100;                                //Inicia velocidade no valor máximo
+ velocidade = 255;                                //Inicia velocidade no valor máximo
  
  bipa(1500);                                      //Robo bipa por 1,5s 
  bluetooth.println("Bluetooth OK!");              //Envia mensagem para receptor bluetooth
@@ -66,15 +68,22 @@ void setup()
 // --- LOOP INFINITO ---
 void loop()
 {
-     verificaPiso();
-     robot_forward(velocidade);
-     bipa(100);                               //Bipa por 100ms 
-     delay(80);                               //Faz verificacao a cada 80ms de obstaculos a frente
-     dist_cm = measureDistance();             //Verifica distancia de algum obstaculo a frente
-     if(dist_cm < 20)                         //Distância menor que 20 cm?
-     {
-         decision();
-     }
+  verificaPiso();
+  robot_forward(velocidade);
+  delay(80);                               //Faz verificacao a cada 80ms de obstaculos a frente
+  dist_cm = measureDistance();             //Verifica distancia de algum obstaculo a frente
+  Serial.println(dist_cm);
+  if(dist_cm < 20)
+  {
+    decision();
+  }
+  contador += 1;
+  Serial.println(contador);
+  if (contador == 20)
+  {
+    bipa(300);
+    contador = 0;
+  }
 }
  
 // --- DESENVOLVIMENTO DAS FUNCOES AUXILIARES ---
@@ -124,23 +133,25 @@ void decision()                              //Compara as distâncias e decide q
    delay(500);                               //Aguarda 500ms
    dist_left = measureDistance();            //Mede distância e armazena em dis_left
    delay(2000);                              //Aguarda 2000ms
-   servo.write(80);                          //Centraliza servo
+   servo.write(90);                          //Centraliza servo
    delay(500);
    if(dist_right > dist_left)                //Distância da direita maior que da esquerda?
    {                                         //Sim...
-      robot_backward(velocidade);            //Move o robô para trás
-      delay(600);                            //Por 600ms
-      robot_right(velocidade);               //Move o robô para direita
-      delay(2000);                           //Por 2000ms
-      robot_forward(velocidade);             //Move o robô para frente
+     bluetooth.println("Vai para direita!");
+     robot_backward(velocidade);            //Move o robô para trás
+     delay(600);                            //Por 600ms
+     robot_right(velocidade);               //Move o robô para direita
+     delay(700);                           //Por 2000ms
+     robot_forward(velocidade);             //Move o robô para frente
    }
    else                                      //Não...
    {
-      robot_backward(velocidade);            //Move o robô para trás
-      delay(600);                            //Por 600ms
-      robot_left(velocidade);                //Move o robô para esquerda
-      delay(2000);                           //Por 2000ms
-      robot_forward(velocidade);             //Move o robô para frente
+     bluetooth.println("Vai para esquerda!");
+     robot_backward(velocidade);            //Move o robô para trás
+     delay(600);                            //Por 600ms
+     robot_left(velocidade);                //Move o robô para esquerda
+     delay(700);                           //Por 2000ms
+     robot_forward(velocidade);             //Move o robô para frente
    }
  
 }
@@ -199,4 +210,4 @@ void bipa(int tempo)
      digitalWrite(BUZZER, HIGH);               //Liga buzzer 
      delay(tempo);                             //Tempo buzzer ligado
      digitalWrite(BUZZER, LOW);                //Desliga buzzer
-} 
+}
