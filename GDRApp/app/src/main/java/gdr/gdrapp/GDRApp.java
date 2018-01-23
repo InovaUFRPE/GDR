@@ -4,47 +4,54 @@ import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Vibrator;
+import android.content.SharedPreferences;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.ImageButton;
-import android.widget.RelativeLayout;
-import android.widget.Switch;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.UUID;
 
 public class GDRApp extends AppCompatActivity {
     BluetoothAdapter meuBluetooth = BluetoothAdapter.getDefaultAdapter();
     ImageButton BTstatus;
-    ImageButton bateria;
+    ImageView bateria;
     ImageButton config;
     ImageButton manual;
     TextView texto;
-    BluetoothSocket mSocket=null;
     ProgressDialog loading;
-    UUID mUUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
     static final int VISIBILITY_REQUEST = 1;
     ArrayList<BluetoothDevice> encontrados;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_gdrapp);
-        startService(new Intent(getBaseContext(), Service.class));
+        App.CONTEXT = this.getApplicationContext();
+        App.ACT = this;
         configBotoes();
+        setGDR(false);
+    }
+
+
+
+
+    public void setGDR(boolean GDR){
+        SharedPreferences.Editor editor = getSharedPreferences("config",MODE_PRIVATE).edit();
+        editor.putBoolean("GDR",GDR);
+        editor.commit();
     }
 
     // Essa função é chamada sempre que:
@@ -66,8 +73,7 @@ public class GDRApp extends AppCompatActivity {
                 listaDispositivos();
             }else if (action.equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)){
                 int state = intent.getIntExtra(BluetoothAdapter.EXTRA_CONNECTION_STATE, -1);
-                if (state == BluetoothAdapter.STATE_DISCONNECTED)
-                {
+                if (state == BluetoothAdapter.STATE_DISCONNECTED) {
 
                 }
             }
@@ -75,15 +81,15 @@ public class GDRApp extends AppCompatActivity {
     };
 
 
-    //sempre que o app fica em segundo plano e vc abre ele novamente
+    //sempre que o App fica em segundo plano e vc abre ele novamente
     @Override
     public void onResume(){
         super.onResume();
         if (meuBluetooth.isEnabled()){
-            BTstatus.setContentDescription("desconectar");
+            BTstatus.setContentDescription("Clique para desligar bluetooth, clique e segure para pesquisar dispositivos");
             BTstatus.setBackgroundResource(R.drawable.bton);
         } else {
-            BTstatus.setContentDescription("conectar");
+            BTstatus.setContentDescription("Clique para ligar bluetooth e achar o GDR");
             BTstatus.setBackgroundResource(R.drawable.btoff);
         }
     }
@@ -119,13 +125,8 @@ public class GDRApp extends AppCompatActivity {
         config.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
                 final AlertDialog.Builder dialog1 = new AlertDialog.Builder(GDRApp.this);
-                //dialog1.setCancelable(false);
                 dialog1.setCustomTitle(getLayoutInflater().inflate(R.layout.btn_share,null));
-                //dialog1.setView(/*Your number picker view*/);
                 dialog1.create().show();
-
-                //startActivity(new Intent(GDRApp.this, Manual.class));
-                //finish();
             }
         });
     }
@@ -138,7 +139,7 @@ public class GDRApp extends AppCompatActivity {
             this.startActivityForResult(discoverableIntent, VISIBILITY_REQUEST);
         } else {
             meuBluetooth.disable();
-            BTstatus.setContentDescription("ligar bluetooth");
+            BTstatus.setContentDescription("Clique para ligar bluetooth e achar o GDR");
             BTstatus.setBackgroundResource(R.drawable.btoff);
         }
     }
@@ -148,7 +149,7 @@ public class GDRApp extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == VISIBILITY_REQUEST && resultCode == RESULT_FIRST_USER) {
             meuBluetooth.enable();
-            BTstatus.setContentDescription("desligar bluetooth");
+            BTstatus.setContentDescription("Clique para desligar bluetooth, clique e segure para pesquisar dispositivos");
             BTstatus.setBackgroundResource(R.drawable.bton);
             procurar();
         }
@@ -161,6 +162,8 @@ public class GDRApp extends AppCompatActivity {
         bluetoothFilter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
         bluetoothFilter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         bluetoothFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
+        bluetoothFilter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+        bluetoothFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
         registerReceiver(receptor, bluetoothFilter);
         encontrados = new ArrayList<>();
         loading = ProgressDialog.show(this,"","Procurando dispositivos...",false,false);
@@ -177,7 +180,7 @@ public class GDRApp extends AppCompatActivity {
         }else {
             CharSequence[] x = new CharSequence[encontrados.size()];
             for(int i = 0; i<encontrados.size();i++){
-                x[i] = encontrados.get(i).getName()+"\n"+encontrados.get(i).getAddress();
+                x[i] = encontrados.get(i).getName()+"\n";
             }
             final CharSequence[] disp = x;
             builder.setTitle("Dispositivos encontrados");
@@ -200,28 +203,15 @@ public class GDRApp extends AppCompatActivity {
         builder.create().show();
     }
 
-    //Chamado quando vc escolhe o dispositivo que quer se conectar
+    //20:17:03:06:04:29
+    //Inicia a conexão em segundo plano
     public void conecta(int i) throws IOException {
         BluetoothDevice GDR = encontrados.get(i);
-        mSocket = GDR.createInsecureRfcommSocketToServiceRecord(mUUID);
-        try{
-            mSocket.connect();
-        } catch (IOException e){
-            try{
-                Method method = GDR.getClass().getMethod("createRfcommSocket", new Class[] {int.class});
-                mSocket = (BluetoothSocket)method.invoke(GDR, Integer.valueOf(1));
-                mSocket.connect();
-                if (mSocket.getRemoteDevice().getName()=="HC-05"){
-                    Toast.makeText(this, "Você está conectado ao GDR", Toast.LENGTH_LONG).show();
-                }
-            } catch (Exception ex) {
-                throw new IOException(e);
-            }
-        }
+        Intent intent = new Intent(getBaseContext(),BluetoothService.class);
+        intent.putExtra("device", GDR.getAddress());
+        startService(intent);
 
     }
-
-
 
     @Override
     public void onPause() {
@@ -233,4 +223,8 @@ public class GDRApp extends AppCompatActivity {
         }
         super.onPause();
     }
+
+
+
+
 }
