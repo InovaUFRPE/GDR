@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -13,15 +14,29 @@
         android:roundIcon="@mipmap/gdr"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <receiver android:name=".ServiceIntentReceiver">
+            <intent-filter>
+                <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <service android:name=".Service" />
+
         <activity android:name=".GDRApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECT_REQUESTED" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity android:name=".Manual" />
-        <activity android:name=".Configuracoes"></activity>
+        <activity android:name=".Configuracoes" />
+        <activity
+            android:name=".SettingsActivity"
+            android:label="@string/title_activity_settings"></activity>
     </application>
 
 </manifest>
