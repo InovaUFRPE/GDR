@@ -1,7 +1,7 @@
 
 /*****************************************************************************************************
  * ------------------------------------------GDR - Guide Dog Robot---------------------------------------
- * Versão do Software: 2.1
+ * Versão do Software: 2.2
  ******************************************************************************************************/
 //--- BIBLIOTECAS ---    
 #include <Servo.h>                 //Biblioteca de manipulação do servo motor.    
@@ -58,7 +58,7 @@ void setup()
  
  digitalWrite(trigPinF, LOW);                     //Pino de trigger inicia em low
  servo.write(90);                                 //Centraliza servo
- delay(500);                                      //Aguarda meio segundo antes de iniciar
+ //delay(500);                                      //Aguarda meio segundo antes de iniciar
  velocidade = 255;                                //Inicia velocidade no valor máximo
  
  bipa(1500);                                      //Robo bipa por 1,5s 
@@ -75,6 +75,7 @@ void loop()
   Serial.println(dist_cm);
   if(dist_cm < 20)
   {
+    bluetooth.println("Obstaculo detectado");              //Envia mensagem para receptor bluetooth
     decision();
   }
   contador += 1;
@@ -124,33 +125,33 @@ void decision()                              //Compara as distâncias e decide q
 {
    robot_stop(velocidade);                   //Para o robô
    bipa(1000);                               //Bipa 1s para indicar obstaculo identificado
-   delay(500);                               //Aguarda 500ms
+   //delay(500);                               //Aguarda 500ms
    servo.write(35);                          //Move sensor para direita através do servo
-   delay(500);                               //Aguarda 500ms
+   //delay(500);                               //Aguarda 500ms
    dist_right = measureDistance();           //Mede distância e armazena em dist_right
-   delay(2000);                              //Aguarda 2000ms
+   delay(500);                              //Aguarda 2000ms (ALTERADO)
    servo.write(145);                         //Move sensor para esquerda através do servo
-   delay(500);                               //Aguarda 500ms
+   //delay(500);                               //Aguarda 500ms
    dist_left = measureDistance();            //Mede distância e armazena em dis_left
-   delay(2000);                              //Aguarda 2000ms
+   delay(500);                              //Aguarda 2000ms (ALTERADO)
    servo.write(90);                          //Centraliza servo
-   delay(500);
+   //delay(500);
    if(dist_right > dist_left)                //Distância da direita maior que da esquerda?
    {                                         //Sim...
-     bluetooth.println("Vai para direita!");
+     bluetooth.println("Vai para direita");
      robot_backward(velocidade);            //Move o robô para trás
      delay(600);                            //Por 600ms
      robot_right(velocidade);               //Move o robô para direita
-     delay(700);                           //Por 2000ms
+     delay(700);                           //Por 700ms
      robot_forward(velocidade);             //Move o robô para frente
    }
    else                                      //Não...
    {
-     bluetooth.println("Vai para esquerda!");
+     bluetooth.println("Vai para esquerda");
      robot_backward(velocidade);            //Move o robô para trás
      delay(600);                            //Por 600ms
      robot_left(velocidade);                //Move o robô para esquerda
-     delay(700);                           //Por 2000ms
+     delay(700);                           //Por 700ms
      robot_forward(velocidade);             //Move o robô para frente
    }
  
@@ -200,7 +201,7 @@ void verificaPiso()
 {
    status_IR_piso_ok = digitalRead(IR);        //Ler sensor IR
    if(status_IR_piso_ok == 1){                   //Verifica condiçao do piso
-      bluetooth.println("Buraco detectado!");  //Exibe no serial monitor   
+      bluetooth.println("Buraco detectado");  //Exibe no serial monitor   
       decision();                              //Para o robô e decide o lado a seguir sem obstaculo  
    }
 }
