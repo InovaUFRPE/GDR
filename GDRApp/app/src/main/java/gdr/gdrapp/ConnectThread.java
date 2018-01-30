@@ -54,6 +54,7 @@ public class ConnectThread extends Thread{
                 temp = mmSocket.getInputStream();
                 editor.putBoolean("GDR",true);
                 GDR = true;
+                App.GDR = true;
             }
         } catch (IOException e){
             try{
@@ -65,6 +66,7 @@ public class ConnectThread extends Thread{
                     temp = mmSocket.getInputStream();
                     editor.putBoolean("GDR",true);
                     GDR = true;
+                    App.GDR = true;
                 }
             } catch (Exception ex) {
                 throw new IOException(e);
@@ -81,15 +83,19 @@ public class ConnectThread extends Thread{
                 try{
                     avilableBytes=inputStream.available();
                     final byte[] buffer=new byte[avilableBytes];
-                    if (avilableBytes>3){
+                    if (avilableBytes>5){
                         bytes=inputStream.read(buffer);
                         final String readMessage=new String(buffer);
                         if (bytes>=3){
-                            final String out = readMessage.substring(0,3);
                             App.ACT.runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    result(out);
+                                    if (readMessage.toLowerCase().contains("buraco".toLowerCase())){
+                                        Toast.makeText(App.ACT, "buraco detectado", Toast.LENGTH_SHORT).show();
+                                    }
+                                    if (readMessage.toLowerCase().contains("obstaculo".toLowerCase())){
+                                        Toast.makeText(App.ACT, "obstaculo detectado", Toast.LENGTH_SHORT).show();
+                                    }
                                 }
                             });
                         }

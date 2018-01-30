@@ -12,5 +12,5 @@ import android.widget.Toast;
 public class App {
     public static Context CONTEXT = null;
     public static Activity ACT = null;
-
+    public static boolean GDR = false;
 }

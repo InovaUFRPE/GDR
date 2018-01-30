@@ -41,7 +41,7 @@ public class ServiceIntentReceiver extends BroadcastReceiver {
 
         final String action = intent.getAction();
         if (action.equals(BluetoothDevice.ACTION_ACL_DISCONNECTED)){
-            //if (gdr && bt){
+            if (App.GDR){
                 Intent rIntent = new Intent(context,GDRApp.class);
                 PendingIntent resultPendingIntent = PendingIntent.getActivity(context, 0, rIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
@@ -60,8 +60,8 @@ public class ServiceIntentReceiver extends BroadcastReceiver {
                 nm.notify(001,not);
 
 
-                editor.putBoolean("GDR",false);
-            //}
+                App.GDR = false;
+            }
         }
     }
 
